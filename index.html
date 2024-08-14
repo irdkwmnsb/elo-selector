@@ -1,0 +1,228 @@
+<style>
+    body {
+        margin: 0;
+        overflow-x: hidden;
+    }
+    #game {
+        height: 100%;
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .split {
+        display: flex;
+        flex-grow: 1;
+        gap: 30px;
+    }
+    .split > * {
+        flex-grow: 1;
+        flex-basis: 50%;
+    }
+    .hidden {
+        display: none;
+    }
+    .pic {
+        border: 1px black solid;
+        height: 100%;
+        display: flex;
+        flex-direction: column;
+    }
+    .pic img {
+        width: 100%;
+        flex-grow: 1;
+        flex-basis: auto;
+        object-fit: contain;
+    }
+    .pic button {
+        height: 10vh;
+    }
+    #list div {
+        position: relative;
+    }
+    #list div img {
+        position: absolute;
+        z-index: 2;
+        left: 350px;
+        bottom: 0;
+        width: 30vw;
+        object-fit: contain;
+        height: 30vh;
+    }
+</style>
+
+<div id="game">
+    <h1>ELO system</h1>
+    <button onclick="start()">Select directory</button>
+    <div class="split" id="split">
+        <div id="pic1" class="pic">
+            <div></div>
+            <img/>
+            <button>This one</button>
+        </div>
+        <div id="pic2" class="pic">
+            <div></div>
+            <img/>
+            <button>This one</button>
+        </div>
+    </div>
+</div>
+Rating:
+<div id="list">
+
+</div>
+<script>
+    const list = document.getElementById("list")
+    const split = document.getElementById("split")
+    let storage = {
+        start_score: 1500,
+        k: 32,
+        c: 400,
+        players: {}
+    };
+    const imageHandles = {};
+    let storageHandle = undefined;
+
+    const saveScores = async () => {
+        const writeable = await storageHandle.createWritable()
+        await writeable.write(JSON.stringify(storage, undefined, 4))
+        await writeable.close()
+    }
+    let win1 = null, win2 = null, draw = null
+    document.addEventListener("keydown", (ev) => {
+        if (ev.key === "ArrowLeft") {
+            win1();
+        } else if (ev.key === "ArrowRight") {
+            win2();
+        } else if (ev.key === "ArrowUp") {
+            draw();
+        }
+    })
+
+    const makeRound = async () => {
+        split.classList.remove("hidden")
+        const items = [...Object.entries(storage.players)]
+        items.sort(([_, score1], [__, score2]) => {
+            return score2 - score1
+        })
+        while (list.firstChild) {
+            list.removeChild(list.firstChild)
+        }
+        items.forEach(([name, score]) => {
+            const el = document.createElement("div")
+            el.innerText = `${name}: ${score}`
+            el.addEventListener("mouseenter", async () => {
+                const hoverimg = document.createElement("img")
+                const handle = imageHandles[name]
+                const file = await handle.getFile()
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    hoverimg.src = ev.target.result
+                }
+                reader.readAsDataURL(file)
+                el.appendChild(hoverimg)
+            })
+            el.addEventListener("mouseleave", () => {
+                const img = el.querySelectorAll("img")
+                img.forEach((imgi) => el.removeChild(imgi))
+            })
+            list.appendChild(el)
+        });
+        const getRandomImage = () => {
+            const keys = Object.keys(imageHandles);
+            const index = Math.floor(Math.random() * keys.length)
+            return keys[index]
+        }
+        const player1 = getRandomImage();
+        let player2;
+        do {
+            player2 = getRandomImage()
+        } while (player2 === player1)
+        const fillPlayer = async (name, pic, win) => {
+            const handle = imageHandles[name]
+            const file = await handle.getFile()
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const img = pic.querySelector("img")
+                img.src = ev.target.result
+            }
+            reader.readAsDataURL(file)
+            const button = pic.querySelector("button")
+            const title = pic.querySelector("div")
+            title.innerText = name
+            button.onclick = win
+        }
+        const pic1 = document.getElementById("pic1");
+        const pic2 = document.getElementById("pic2");
+        const ra = storage.players[player1]
+        const rb = storage.players[player2]
+        const qa = Math.pow(10, ra / storage.c)
+        const qb = Math.pow(10, rb / storage.c)
+        const ea = qa / (qa + qb)
+        const eb = qb / (qa + qb)
+        const mkWin = (sa, sb) => () => {
+            const rna = ra + storage.k * (sa - ea)
+            const rnb = rb + storage.k * (sb - eb)
+            storage.players[player1] = rna
+            storage.players[player2] = rnb
+            saveScores()
+            split.classList.add("hidden")
+            makeRound()
+        }
+        win1 = mkWin(1, 0)
+        win2 = mkWin(0, 1)
+        draw = mkWin(0.5, 0.5)
+        await Promise.all([fillPlayer(player1, pic1, win1), fillPlayer(player2, pic2, win2)])
+    }
+
+    const start = async () => {
+        if (window.showDirectoryPicker === undefined) {
+            alert("Пожалуйста, используйте последнюю версию Google Chrome.")
+            return;
+        }
+        let directoryStructure = undefined;
+
+        // Recursive function that walks the directory structure.
+        const getFiles = async (dirHandle, path = dirHandle.name) => {
+            const dirs = [];
+            const files = [];
+            for await (const subHandle of dirHandle.values()) {
+                const nestedPath = `${path}/${subHandle.name}`
+                if (subHandle.kind === "file") {
+                    files.push(subHandle.getFile().then((file) => {
+                        if (file.type.startsWith("image")) {
+                            imageHandles[nestedPath] = subHandle
+                        } else if (file.type === "application/json") {
+                            storageHandle = subHandle
+                        }
+                        return subHandle
+                    }))
+                } else if (subHandle.kind === "directory") {
+                    dirs.push(getFiles(subHandle, nestedPath));
+                }
+            }
+            return [
+                ...(await Promise.all(dirs)).flat(),
+                ...(await Promise.all(files)),
+            ];
+        };
+
+        // Open the directory.
+        const handle = await showDirectoryPicker({
+            mode: "readwrite"
+        });
+        // Get the directory structure.
+        await getFiles(handle, undefined);
+        if (storageHandle === undefined) {
+            storageHandle = await handle.getFileHandle(".scores.json", { create: true })
+            await saveScores()
+        }
+        storage = JSON.parse(await (await storageHandle.getFile()).text());
+        for (const image of Object.keys(imageHandles)) {
+            if (!(image in storage.players)) {
+                storage.players[image] = storage.start_score
+            }
+        }
+        await saveScores();
+        makeRound();
+    }
+</script>
