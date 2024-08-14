@@ -77,7 +77,8 @@ Rating:
         start_score: 1500,
         k: 32,
         c: 400,
-        players: {}
+        players: {},
+        games: []
     };
     const imageHandles = {};
     let storageHandle = undefined;
@@ -164,6 +165,7 @@ Rating:
             const rnb = rb + storage.k * (sb - eb)
             storage.players[player1] = rna
             storage.players[player2] = rnb
+            storage.games.push([player1, player2, sa, sb])
             saveScores()
             split.classList.add("hidden")
             makeRound()
