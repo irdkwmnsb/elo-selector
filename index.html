@@ -52,6 +52,7 @@
 
 <div id="game">
     <h1>ELO system</h1>
+    <div id="counter">Times played: 0</div>
     <button onclick="start()">Select directory</button>
     <div class="split" id="split">
         <div id="pic1" class="pic">
@@ -73,6 +74,7 @@ Rating:
 <script>
     const list = document.getElementById("list")
     const split = document.getElementById("split")
+    const counter = document.getElementById("counter")
     let storage = {
         start_score: 1500,
         k: 32,
@@ -128,6 +130,7 @@ Rating:
             })
             list.appendChild(el)
         });
+        counter.innerText = `Times played: ${storage.games.length}`
         const getRandomImage = () => {
             const keys = Object.keys(imageHandles);
             const index = Math.floor(Math.random() * keys.length)
