@@ -29,15 +29,29 @@
         display: flex;
         flex-direction: column;
     }
-    .pic img {
+    .pic .imgwrap {
         width: 100%;
         flex-grow: 1;
         flex-basis: auto;
-        object-fit: contain;
         overflow: hidden;
+        display: flex;
+        position: relative;
+        align-items: center;
+    }
+    .pic img {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        transform-origin: center center;
+        pointer-events: none;
     }
     .pic button {
         height: 10vh;
+    }
+    #list {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
     }
     #list div {
         position: relative;
@@ -47,25 +61,40 @@
         z-index: 2;
         left: 350px;
         bottom: 0;
-        width: 30vw;
+        width: 500px;
         object-fit: contain;
-        height: 30vh;
+        height: 500px;
     }
 </style>
 
 <div id="game">
     <h1>ELO system</h1>
     <div id="counter">Times played: 0</div>
+    <div>
+        Hover scale
+        <select id="scaleSelector">
+            <option value="1">off</option>
+            <option value="2">x2</option>
+            <option value="3">x3</option>
+            <option value="4">x4</option>
+            <option value="6">x6</option>
+            <option value="16">x16</option>
+        </select>
+    </div>
     <button onclick="start()">Select directory</button>
     <div class="split" id="split">
         <div id="pic1" class="pic">
             <div></div>
-            <img/>
+            <div class="imgwrap">
+                <img/>
+            </div>
             <button>This one</button>
         </div>
         <div id="pic2" class="pic">
             <div></div>
-            <img/>
+            <div class="imgwrap">
+                <img/>
+            </div>
             <button>This one</button>
         </div>
     </div>
@@ -78,6 +107,37 @@ Rating:
     const list = document.getElementById("list")
     const split = document.getElementById("split")
     const counter = document.getElementById("counter")
+    const scaleSelector = document.getElementById("scaleSelector")
+    const pic1 = document.getElementById("pic1");
+    const pic2 = document.getElementById("pic2");
+    scaleSelector.addEventListener("change", (ev) => {
+        scaleFactor = ev.target.value
+    })
+    const addScaler = (el) => {
+        console.log(el);
+        const img = el.querySelector("img");
+        let width
+        let height
+        const observer = new ResizeObserver((entries) => {
+            ({width, height} = entries[0].contentRect)
+            console.log(width, height)
+        });
+        observer.observe(el)
+        el.addEventListener("mousemove", (ev) => {
+            console.log(ev);
+            const dx = width / 2 - ev.layerX;
+            const dy = height / 2 - ev.layerY;
+            const e = `scale(${scaleFactor}) translate(${dx}px, ${dy}px)`
+            console.log(e)
+            img.style.transform = e;
+        })
+        el.addEventListener("mouseleave", (ev) => {
+            img.style.transform = "";
+        })
+    }
+    addScaler(pic1.querySelector(".imgwrap"))
+    addScaler(pic2.querySelector(".imgwrap"))
+    let scaleFactor = 1;
     let storage = {
         start_score: 1500,
         k: 32,
@@ -128,8 +188,8 @@ Rating:
                 el.appendChild(hoverimg)
             })
             el.addEventListener("mouseleave", () => {
-                const img = el.querySelectorAll("img")
-                img.forEach((imgi) => el.removeChild(imgi))
+                const img = list.querySelectorAll("* img")
+                img.forEach((imgi) => imgi.parentNode.removeChild(imgi))
             })
             list.appendChild(el)
         });
@@ -155,11 +215,9 @@ Rating:
             reader.readAsDataURL(file)
             const button = pic.querySelector("button")
             const title = pic.querySelector("div")
-            title.innerText = name
+            title.innerText = `${name} (score: ${storage.players[name]})`
             button.onclick = win
         }
-        const pic1 = document.getElementById("pic1");
-        const pic2 = document.getElementById("pic2");
         const ra = storage.players[player1]
         const rb = storage.players[player2]
         const qa = Math.pow(10, ra / storage.c)
