@@ -124,6 +124,9 @@ Rating:
         });
         observer.observe(el)
         el.addEventListener("mousemove", (ev) => {
+            if(scaleFactor === 1) {
+                return;
+            }
             console.log(ev);
             const dx = width / 2 - ev.layerX;
             const dy = height / 2 - ev.layerY;
